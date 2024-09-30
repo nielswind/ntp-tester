@@ -5,6 +5,9 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"os"
+	"reflect"
+	"strconv"
 
 	"github.com/beevik/ntp"
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,27 +28,33 @@ func init() {
 }
 
 func main() {
+	fmt.Println("== Starting ntp-checker with prometheus metrics ==")
+	metricsPort := getEnv("METRICS_PORT","2112")
+	ntpServer := getEnv("NTP_SERVER","time.google.com") // cph-dc-2.corp.local
+	checkEvery, _ := time.ParseDuration(getEnv("CHECK_DURATION","10s"))
+	allowedDrift, _ := strconv.ParseFloat(getEnv("MAX_DRIFT_ALLOWED_SECONDS", "2"),64)
+	fmt.Printf("Using ntp server %s and prometheus port %s\n", ntpServer, metricsPort)
+	fmt.Println("Updates metrics every",checkEvery,"with allowed drift of",allowedDrift,"seconds")
+
 	// Start a HTTP server for Prometheus to scrape
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		log.Fatal(http.ListenAndServe(":2112", nil)) // Expose metrics on port 2112
+		log.Fatal(http.ListenAndServe(":"+metricsPort, nil)) // Expose metrics on port 2112
 	}()
-
-	// NTP server to query (you can choose a different one if needed)
-	ntpServer := "time.google.com"
 
 	// Run the drift checker periodically
 	for {
-		checkTimeDrift(ntpServer)
-		time.Sleep(60 * time.Second) // Check drift every 60 seconds
+		checkTimeDrift(ntpServer, allowedDrift)
+		time.Sleep(checkEvery) // Check drift every 60 seconds
 	}
 }
 
-func checkTimeDrift(ntpServer string) {
+func checkTimeDrift(ntpServer string, allowedDrift float64) {
 	// Get the current time from the NTP server
+	// ntpTime, err := ntp.Time(ntpServer)
 	ntpTime, err := ntp.Time(ntpServer)
 	if err != nil {
-		log.Printf("Failed to get time from NTP server: %v", err)
+		log.Printf("Failed to get time from NTP server %s: %v", ntpServer, err)
 		return
 	}
 
@@ -63,11 +72,17 @@ func checkTimeDrift(ntpServer string) {
 	fmt.Printf("Time drift:      %.6f seconds\n", drift)
 
 	// Optional: Print a warning if the drift exceeds a certain threshold
-	threshold := 1.0 // 1 second threshold
+	threshold := allowedDrift;
 	if drift > threshold || drift < -threshold {
-		fmt.Println("Warning: Time drift exceeds threshold!")
+		fmt.Println(os.Stderr, "Warning: Time drift exceeds threshold!")
 	} else {
 		fmt.Println("Time is in sync with NTP server.")
 	}
 }
 
+func getEnv(key, fallback string) string {
+    if value, ok := os.LookupEnv(key); ok {
+        return value
+    }
+    return fallback
+}

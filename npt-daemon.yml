@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ntp-tester
+spec:
+  selector:
+    matchLabels:
+      app: ntp-tester
+  template:
+    metadata:
+      labels:
+        app: ntp-tester
+    spec:
+      containers:
+      - name: ntp-tester
+        image: ntp-tester:alpha2
+        #image: ghcr.io/sapcc/ntp_exporter:v2.2.0
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: NTP_SERVER
+          value: "pool.ntp.org"
+        - name: METRICS_PORT
+          value: "2112"
+        - name: CHECK_DURATION
+          value: "30s"
+        - name: MAX_DRIFT_ALLOWED_SECONDS
+          value: "2"
