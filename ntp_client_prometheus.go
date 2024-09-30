@@ -17,7 +17,7 @@ import (
 // Define a Prometheus gauge metric to track the time drift
 var (
 	timeDriftGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "ntp_time_drift_seconds",
+ 		Name: "ntp_time_drift_seconds",
 		Help: "Time drift between local system and NTP server in seconds",
 	})
 )
